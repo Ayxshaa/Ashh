@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Nippo';
+  src: url('/Fonts/OTF/Nippo-Regular.otf') format('opentype');
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'Nippo';
+  src: url('/Fonts/OTF/Nippo-Bold.otf') format('opentype');
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: 'Nippo';
+  src: url('/Fonts/OTF/Nippo-Light.otf') format('opentype');
+  font-weight: 300;
+}
+
+@font-face {
+  font-family: 'Nippo';
+  src: url('/Fonts/OTF/Nippo-Medium.otf') format('opentype');
+  font-weight: 500;
+}
+
+@font-face {
+  font-family: 'Nippo';
+  src: url('/Fonts/OTF/Nippo-Extralight.otf') format('opentype');
+  font-weight: 200;
+}
+
+/* index.css */
+
+:root {
+  /* Primary Theme */
+  --color-bg: #000000;          /* Deep space background */
+  --color-primary: #a259ff;     /* Main accent - cosmic purple */
+  --color-secondary: #5c5c8a;   /* Secondary accent - soft moon shadow */
+  --color-highlight: #ffffff;  /* For glowing text, moon light, stars */
+
+  /* Neutrals */
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-dark-gray: #1c1c2e;
+  --color-light-gray: #bfbfd4;
+
+  /* Additional Effects */
+  --color-star: #e6e6fa;        /* Light lavender for stars */
+  --color-moon-surface: #cccccc;/* Realistic moon color */
+  --color-shadow: rgba(0, 0, 0, 0.3); /* For depth and realism */
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: black;
+  color: var(--color-highlight);
+  font-family: 'Nippo', sans-serif; /* Also fixed the font family name */
+  min-height: 100vh;
+}
+
