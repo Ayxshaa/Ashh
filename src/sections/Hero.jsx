@@ -8,6 +8,7 @@ const Hero = ({ onComplete }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
+  const [userInteracted, setUserInteracted] = useState(false);
 
   const textSequence = [
     { text: "🌕 Welcome to Ash Space", delay: 60, pause: 800 },
@@ -17,33 +18,37 @@ const Hero = ({ onComplete }) => {
     { text: "Are you ready to launch?", delay: 80, pause: 600 }
   ];
 
-  // Auto-initialize audio and start typing on component mount
+  // Initialize component and start typing
   useEffect(() => {
-    const initializeAndStart = () => {
+    const initializeComponent = () => {
       // Start typing animation immediately
       setIsTyping(true);
       
       // Prepare audio element
       if (audioRef.current) {
         audioRef.current.volume = 0.3;
-        console.log('Audio element prepared, waiting for user interaction...');
+        console.log('Audio element prepared');
       }
 
-      // Set up global event listeners for first user interaction
+      // Set up listeners for first user interaction to enable audio
       const handleFirstInteraction = async () => {
-        try {
-          if (audioRef.current && !isMuted) {
-            await audioRef.current.play();
-            setAudioInitialized(true);
-            console.log('Audio started after user interaction');
+        if (!userInteracted) {
+          setUserInteracted(true);
+          console.log('First user interaction detected');
+          
+          // Try to play audio if not muted and typing is active
+          if (audioRef.current && !isMuted && isTyping) {
+            try {
+              await audioRef.current.play();
+              setAudioInitialized(true);
+              console.log('Audio started after user interaction');
+            } catch (err) {
+              console.log('Audio play failed:', err);
+            }
           }
-        } catch (err) {
-          console.log('Audio play failed:', err);
-          // Still mark as initialized so UI works properly
-          setAudioInitialized(true);
         }
         
-        // Remove listeners after first successful interaction
+        // Remove listeners after first interaction
         document.removeEventListener('click', handleFirstInteraction);
         document.removeEventListener('keydown', handleFirstInteraction);
         document.removeEventListener('touchstart', handleFirstInteraction);
@@ -58,42 +63,61 @@ const Hero = ({ onComplete }) => {
     };
 
     // Small delay to ensure DOM is ready
-    setTimeout(initializeAndStart, 300);
+    setTimeout(initializeComponent, 300);
   }, []);
+
+  // Handle audio playback based on state changes
+  useEffect(() => {
+    const handleAudioPlayback = async () => {
+      if (!audioRef.current || !userInteracted) return;
+
+      try {
+        if (isTyping && !isMuted) {
+          // Should be playing
+          if (audioRef.current.paused) {
+            await audioRef.current.play();
+            console.log('Audio started/resumed');
+          }
+        } else {
+          // Should be paused
+          if (!audioRef.current.paused) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            console.log('Audio paused');
+          }
+        }
+      } catch (error) {
+        console.error('Audio playback error:', error);
+      }
+    };
+
+    handleAudioPlayback();
+  }, [isTyping, isMuted, userInteracted]);
 
   // Handle mute/unmute toggle
   const toggleMute = async () => {
-    if (audioRef.current) {
-      if (isMuted) {
-        // Unmuting - try to play if typing is active
-        if (isTyping) {
-          try {
-            await audioRef.current.play();
-            console.log('Audio resumed via unmute');
-          } catch (error) {
-            console.error('Error playing audio on unmute:', error);
-          }
-        }
-      } else {
+    const newMutedState = !isMuted;
+    setIsMuted(newMutedState);
+    
+    if (!audioRef.current) return;
+
+    try {
+      if (newMutedState) {
         // Muting - pause the audio
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
+        console.log('Audio muted');
+      } else {
+        // Unmuting - play if typing is active
+        if (isTyping && userInteracted) {
+          await audioRef.current.play();
+          console.log('Audio unmuted and playing');
+        }
       }
-      setIsMuted(!isMuted);
+    } catch (error) {
+      console.error('Error toggling audio:', error);
     }
   };
-
-  // Audio control effect
-  useEffect(() => {
-    if (audioRef.current && audioInitialized) {
-      if (isTyping && !isMuted) {
-        audioRef.current.play().catch(console.error);
-      } else {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-    }
-  }, [isTyping, audioInitialized, isMuted]);
 
   // Main typing effect
   useEffect(() => {
@@ -118,7 +142,7 @@ const Hero = ({ onComplete }) => {
       // Text complete for this step
       const pauseTimer = setTimeout(() => {
         if (currentStep === textSequence.length - 1) {
-          // Last step completed - stop audio
+          // Last step completed - stop typing (and audio)
           setIsTyping(false);
         }
         setCurrentStep(currentStep + 1);
@@ -158,7 +182,7 @@ const Hero = ({ onComplete }) => {
       >
         <source src="./hero-audio.mp3" type="audio/mp3" />
         <source src="./hero-audio.wav" type="audio/wav" />
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBg==" type="audio/wav" />
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJHfH8N2QQAoUXrTp66hVFApGn+DyvGglBjaOy/LJeywFJg==" type="audio/wav" />
         Your browser does not support the audio element.
       </audio>
 
@@ -206,7 +230,7 @@ const Hero = ({ onComplete }) => {
                   <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
                 </svg>
                 {/* Audio wave animation - show when audio should be playing */}
-                {isTyping && !isMuted && (
+                {isTyping && !isMuted && userInteracted && (
                   <div className="absolute -right-2 top-1/2 transform -translate-y-1/2 flex space-x-0.5">
                     <div className="w-0.5 bg-[var(--color-primary)] rounded-full animate-pulse" style={{ height: '4px', animationDelay: '0ms', animationDuration: '1s' }} />
                     <div className="w-0.5 bg-[var(--color-primary)] rounded-full animate-pulse" style={{ height: '8px', animationDelay: '200ms', animationDuration: '1s' }} />
@@ -219,7 +243,7 @@ const Hero = ({ onComplete }) => {
         </button>
         
         {/* Audio status indicator */}
-        {!audioInitialized && (
+        {!userInteracted && (
           <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
             <p className="text-xs text-white/70 bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm animate-pulse">
               🎵 Click anywhere to enable audio
