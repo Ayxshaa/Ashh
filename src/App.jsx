@@ -3,7 +3,7 @@ import BackgroundCanvas from './components/BackgroundCanvas';
 import Navbar from './components/Navbar';
 import Button from './components/Button';
 import Hero from './sections/Hero';
-import RocketLaunchSequence from './components/RocketLaunchSequence';
+import RocketLaunchSequence from './components/AnimeGirlViewer';
 
 function App() {
   const [currentView, setCurrentView] = useState('hero'); // 'hero', 'moon', 'launch', 'landing'
