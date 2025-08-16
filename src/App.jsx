@@ -3,7 +3,7 @@ import BackgroundCanvas from './components/BackgroundCanvas';
 import Navbar from './components/Navbar';
 import Button from './components/Button';
 import Hero from './sections/Hero';
-import RocketLaunchSequence from './components/RabbitRunner';
+import MoonSurfaceRunner from './components/MoonSurfaceRunner'; // Fixed import
 
 function App() {
   const [currentView, setCurrentView] = useState('hero'); // 'hero', 'moon', 'launch', 'landing'
@@ -13,14 +13,15 @@ function App() {
     setCurrentView('moon');
   };
 
-  // Handle button click to start rocket launch
+  // Handle button click to start moon surface exploration
   const handleJourneyBegin = () => {
-    setCurrentView('launch');
+    setCurrentView('landing'); // Skip launch, go straight to moon surface
   };
 
-  // Handle rocket launch completion (landing on moon)
-  const handleLaunchComplete = () => {
-    setCurrentView('landing');
+  // Handle when user wants to return or continue
+  const handleExplorationComplete = () => {
+    // You can add logic here for what happens after moon exploration
+    console.log('Moon exploration complete!');
   };
 
   return (
@@ -50,30 +51,10 @@ function App() {
         </div>
       )}
 
-      {/* Rocket Launch Sequence */}
-      {currentView === 'launch' && (
-        <div className="w-full h-screen overflow-hidden">
-          <RocketLaunchSequence onComplete={handleLaunchComplete} />
-        </div>
-      )}
-
-      {/* Moon Landing View */}
+      {/* Moon Surface Exploration - The rabbit runner on moon surface */}
       {currentView === 'landing' && (
-        <div className="w-full h-screen overflow-hidden moon-surface-view">
-          {/* Moon Surface Background */}
-          <div className="moon-surface-bg"></div>
-          
-          {/* Welcome message or next content */}
-          <div className="relative z-10 flex items-center justify-center h-full">
-            <div className="text-center text-white">
-              <h1 className="text-6xl font-bold mb-4 font-['Nippo'] glow-text">
-                Welcome to the Moon
-              </h1>
-              <p className="text-xl opacity-80">
-                Your lunar journey begins here...
-              </p>
-            </div>
-          </div>
+        <div className="w-full h-screen overflow-hidden">
+          <MoonSurfaceRunner onComplete={handleExplorationComplete} />
         </div>
       )}
     </div>

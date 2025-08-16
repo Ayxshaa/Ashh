@@ -1,6 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
+// Constants
+const RABBIT_SPEED = 0.05;
+const DECELERATION = 0.92; // How quickly the rabbit slows down (0.9 = fast, 0.99 = slow)
+const MIN_VELOCITY = 0.001; // Minimum velocity before stopping completely
+const ANIMATION_FADE_SPEED = 0.05; // How quickly animation fades in/out
+const MOVEMENT_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+const CAMERA_INITIAL_POSITION = { x: 0, y: 2, z: 5 };
+const LIGHTING_CONFIG = {
+  ambient: { color: 0xffffff, intensity: 0.8 },
+  directional: { color: 0xffffff, intensity: 1.2, position: { x: 2, y: 5, z: 3 } }
+};
+
 const AnimeGirlViewer = () => {
   const canvasRef = useRef(null);
   const sceneRef = useRef(null);
@@ -10,8 +22,14 @@ const AnimeGirlViewer = () => {
   const [loadingStatus, setLoadingStatus] = useState('Loading...');
   const [error, setError] = useState('');
   const [isRunning, setIsRunning] = useState(false);
-  const keysPressed = useRef({});
-  const rabbitSpeed = 0.05;
+  const keysPressed = useRef(new Set());
+  const isMoving = useRef(false);
+  
+  // Velocity system for smooth movement
+  const velocity = useRef({ x: 0, z: 0 });
+  const targetRotation = useRef(0);
+  const currentRotation = useRef(0);
+  const isDecelerating = useRef(false);
 
   useEffect(() => {
     if (!canvasRef.current || sceneRef.current) return;
@@ -30,17 +48,17 @@ const AnimeGirlViewer = () => {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     // Optimized lighting for anime characters
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    const ambientLight = new THREE.AmbientLight(LIGHTING_CONFIG.ambient.color, LIGHTING_CONFIG.ambient.intensity);
     scene.add(ambientLight);
     
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    directionalLight.position.set(2, 5, 3);
+    const directionalLight = new THREE.DirectionalLight(LIGHTING_CONFIG.directional.color, LIGHTING_CONFIG.directional.intensity);
+    directionalLight.position.set(LIGHTING_CONFIG.directional.position.x, LIGHTING_CONFIG.directional.position.y, LIGHTING_CONFIG.directional.position.z);
     scene.add(directionalLight);
 
     // Store scene reference
-    sceneRef.current = { scene, renderer, camera };
+    sceneRef.current = { scene, renderer, camera, animationWeight: 0 };
 
-    // Fast GLB loading
+    // Model loading function
     const loadModel = async () => {
       try {
         setLoadingStatus('Loading rabbit from GLTF...');
@@ -50,12 +68,9 @@ const AnimeGirlViewer = () => {
         const GLTFLoader = GLTFModule.GLTFLoader;
         const loader = new GLTFLoader();
         
-        // Load GLTF file directly (not GLB)
+        // Load GLTF file
         loader.load('./scene.gltf', (gltf) => {
           const model = gltf.scene;
-          
-          // Debug: Log all animations found
-          console.log('Found animations:', gltf.animations.map(anim => anim.name));
           
           // Setup animation mixer if animations exist
           if (gltf.animations && gltf.animations.length > 0) {
@@ -72,29 +87,38 @@ const AnimeGirlViewer = () => {
             // If no specific animation found, use the first one
             if (!runAnimation) {
               runAnimation = gltf.animations[0];
-              console.log('Using first animation:', runAnimation.name);
-            } else {
-              console.log('Using animation:', runAnimation.name);
             }
             
             if (runAnimation) {
               sceneRef.current.runAction = mixerRef.current.clipAction(runAnimation);
               sceneRef.current.runAction.setLoop(THREE.LoopRepeat);
               sceneRef.current.runAction.clampWhenFinished = false;
-              
-              // Set animation speed (you can adjust this)
-              sceneRef.current.runAction.setEffectiveTimeScale(1.0);
-              
-              // Enable the action and play it immediately to test
               sceneRef.current.runAction.enabled = true;
-              sceneRef.current.runAction.setEffectiveWeight(1);
+              sceneRef.current.runAction.setEffectiveWeight(0); // Start with no weight
               sceneRef.current.runAction.play();
               
-              console.log('Animation setup complete:', {
-                name: runAnimation.name,
-                duration: runAnimation.duration,
-                tracks: runAnimation.tracks.length
-              });
+              // Try to find a separate idle/sitting animation
+              let idleAnimation = gltf.animations.find(anim => 
+                anim.name.toLowerCase().includes('idle') || 
+                anim.name.toLowerCase().includes('sit') ||
+                anim.name.toLowerCase().includes('rest') ||
+                anim.name.toLowerCase().includes('breathing')
+              );
+              
+              if (idleAnimation && idleAnimation !== runAnimation) {
+                // Found separate idle animation - use it for sitting
+                sceneRef.current.idleAction = mixerRef.current.clipAction(idleAnimation);
+                sceneRef.current.idleAction.setLoop(THREE.LoopRepeat);
+                sceneRef.current.idleAction.enabled = true;
+                sceneRef.current.idleAction.setEffectiveWeight(1); // Start with full idle weight
+                sceneRef.current.idleAction.play();
+                sceneRef.current.hasIdleAnimation = true;
+              } else {
+                // No separate idle - rabbit sits at first frame of run animation
+                sceneRef.current.hasIdleAnimation = false;
+                sceneRef.current.runAction.paused = true;
+                sceneRef.current.runAction.time = 0;
+              }
               
               // Store all animations for potential use
               sceneRef.current.allAnimations = gltf.animations.map(anim => ({
@@ -103,8 +127,7 @@ const AnimeGirlViewer = () => {
               }));
             }
           } else {
-            console.log('No animations found in the GLB file');
-            setError('No animations found in rabbit_run.glb. Make sure the file contains animations.');
+            setError('No animations found in scene.gltf. Make sure the file contains animations.');
           }
           
           // Optimize model and apply colors
@@ -113,23 +136,56 @@ const AnimeGirlViewer = () => {
               child.frustumCulled = false;
               
               if (child.material) {
-                // Color the eyes black
-                if (child.name.toLowerCase().includes('eye') || 
-                    child.material.name?.toLowerCase().includes('eye')) {
-                  child.material.color = new THREE.Color(0x000000);
+                const childName = child.name.toLowerCase();
+                const materialName = child.material.name?.toLowerCase() || '';
+                
+                // Color the eyes black (multiple possible naming conventions)
+                if (childName.includes('eye') || 
+                    materialName.includes('eye') ||
+                    childName.includes('pupil') ||
+                    materialName.includes('pupil') ||
+                    childName.includes('eyeball') ||
+                    materialName.includes('eyeball')) {
+                  child.material = child.material.clone(); // Clone to avoid affecting other meshes
+                  child.material.color = new THREE.Color(0x000000); // Pure black
+                  child.material.emissive = new THREE.Color(0x000000);
+                  child.material.metalness = 0;
+                  child.material.roughness = 0.8;
                 }
                 
-                // Color the inside of ears pink
-                if (child.name.toLowerCase().includes('ear') && 
-                    (child.name.toLowerCase().includes('inner') || 
-                     child.name.toLowerCase().includes('inside'))) {
-                  child.material.color = new THREE.Color(0xffb6c1);
+                // Color the inside of ears pink (multiple possible naming conventions)
+                else if ((childName.includes('ear') && 
+                         (childName.includes('inner') || 
+                          childName.includes('inside') ||
+                          childName.includes('interior'))) ||
+                        (materialName.includes('ear') && 
+                         (materialName.includes('inner') || 
+                          materialName.includes('inside') ||
+                          materialName.includes('interior'))) ||
+                        childName.includes('earinner') ||
+                        materialName.includes('earinner') ||
+                        childName.includes('ear_inner') ||
+                        materialName.includes('ear_inner')) {
+                  child.material = child.material.clone(); // Clone to avoid affecting other meshes
+                  child.material.color = new THREE.Color(0xffb6c1); // Light pink
+                  child.material.emissive = new THREE.Color(0x000000);
+                  child.material.metalness = 0;
+                  child.material.roughness = 0.6;
                 }
                 
-                // Optimize materials
+                // Also check for generic pink parts that might be ears
+                else if (childName.includes('pink') || materialName.includes('pink')) {
+                  child.material = child.material.clone();
+                  child.material.color = new THREE.Color(0xffb6c1); // Light pink
+                  child.material.emissive = new THREE.Color(0x000000);
+                  child.material.metalness = 0;
+                  child.material.roughness = 0.6;
+                }
+                
+                // Optimize other materials
                 if (child.material.isMeshStandardMaterial) {
-                  child.material.roughness = 0.7;
-                  child.material.metalness = 0.1;
+                  child.material.roughness = Math.max(child.material.roughness || 0, 0.7);
+                  child.material.metalness = Math.min(child.material.metalness || 0, 0.1);
                 }
                 child.material.needsUpdate = true;
               }
@@ -158,15 +214,13 @@ const AnimeGirlViewer = () => {
           // Hide loading after a moment
           setTimeout(() => setLoadingStatus(''), 2000);
         }, (progress) => {
-          console.log('Loading progress:', progress);
+          // Loading progress can be shown here if needed
         }, (error) => {
-          console.error('GLTF loading error:', error);
           setError(`Failed to load scene.gltf: ${error.message}`);
           setLoadingStatus('Failed to load');
         });
         
       } catch (error) {
-        console.error('Loading error:', error);
         setError(error.message);
         setLoadingStatus('Failed to load');
       }
@@ -175,42 +229,50 @@ const AnimeGirlViewer = () => {
     loadModel();
 
     // Set camera position
-    camera.position.set(0, 2, 5);
+    camera.position.set(CAMERA_INITIAL_POSITION.x, CAMERA_INITIAL_POSITION.y, CAMERA_INITIAL_POSITION.z);
     camera.lookAt(0, 0, 0);
 
-    // Keyboard event handlers
-    const handleKeyDown = (event) => {
-      const key = event.key.toLowerCase();
-      keysPressed.current[key] = true;
+    // Function to start movement (graceful acceleration)
+    const startMovement = () => {
+      if (!isMoving.current) {
+        isMoving.current = true;
+        isDecelerating.current = false;
+        setIsRunning(true);
+      }
+    };
 
-      // Start running animation on movement keys
-      if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(event.key)) {
-        if (sceneRef.current.runAction) {
-          if (!isRunning) {
-            console.log('Resuming animation from key press');
-            sceneRef.current.runAction.paused = false;
-            setIsRunning(true);
-          }
-        } else {
-          console.log('No run action available');
-        }
+    // Function to stop movement (graceful deceleration)
+    const stopMovement = () => {
+      if (isMoving.current && !isDecelerating.current) {
+        isDecelerating.current = true;
+        // Don't immediately set isMoving to false - let deceleration handle it
+      }
+    };
+
+    // Keyboard event handlers (prevent key repeat)
+    const handleKeyDown = (event) => {
+      if (!MOVEMENT_KEYS.includes(event.key)) return;
+      
+      // Prevent key repeat issues
+      if (keysPressed.current.has(event.key)) return;
+      
+      const wasEmpty = keysPressed.current.size === 0;
+      keysPressed.current.add(event.key);
+
+      // Start movement only when first movement key is pressed
+      if (wasEmpty) {
+        startMovement();
       }
     };
 
     const handleKeyUp = (event) => {
-      const key = event.key.toLowerCase();
-      keysPressed.current[key] = false;
+      if (!MOVEMENT_KEYS.includes(event.key)) return;
+      
+      keysPressed.current.delete(event.key);
 
-      // Check if any movement keys are still pressed
-      const movementKeys = ['arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
-      const isAnyMovementKeyPressed = movementKeys.some(k => keysPressed.current[k]);
-
-      // Stop running animation if no movement keys are pressed
-      if (!isAnyMovementKeyPressed && sceneRef.current.runAction && isRunning) {
-        console.log('Stopping animation - pausing instead of stopping');
-        // Don't stop the animation, just pause it
-        sceneRef.current.runAction.paused = true;
-        setIsRunning(false);
+      // Start deceleration when no movement keys are pressed
+      if (keysPressed.current.size === 0) {
+        stopMovement();
       }
     };
 
@@ -229,56 +291,112 @@ const AnimeGirlViewer = () => {
       // Update animation mixer
       if (mixerRef.current) {
         mixerRef.current.update(delta);
-        
-        // Debug: Log mixer time occasionally
-        if (Math.random() < 0.01) { // 1% chance per frame
-          console.log('Mixer time:', mixerRef.current.time, 'Delta:', delta);
-        }
       }
       
-      // Handle rabbit movement based on keys
+      // Handle rabbit movement with smooth velocity system
       if (sceneRef.current.model) {
-        let moved = false;
         const model = sceneRef.current.model;
         
-        if (keysPressed.current['arrowup']) {
-          model.position.z -= rabbitSpeed;
-          model.rotation.y = 0;
-          moved = true;
-        }
-        if (keysPressed.current['arrowdown']) {
-          model.position.z += rabbitSpeed;
-          model.rotation.y = Math.PI;
-          moved = true;
-        }
-        if (keysPressed.current['arrowleft']) {
-          model.position.x -= rabbitSpeed;
-          model.rotation.y = Math.PI / 2;
-          moved = true;
-        }
-        if (keysPressed.current['arrowright']) {
-          model.position.x += rabbitSpeed;
-          model.rotation.y = -Math.PI / 2;
-          moved = true;
-        }
+        // Calculate target velocity based on pressed keys
+        let targetVelX = 0;
+        let targetVelZ = 0;
+        let newTargetRotation = targetRotation.current;
+        
+        if (keysPressed.current.size > 0) {
+          // FIXED MOVEMENT DIRECTIONS - Now matches typical game controls
+          if (keysPressed.current.has('ArrowUp')) {
+            targetVelZ -= RABBIT_SPEED; // Forward (into screen, towards camera)
+            newTargetRotation = 0; // Face forward
+          }
+          if (keysPressed.current.has('ArrowDown')) {
+            targetVelZ += RABBIT_SPEED; // Backward (away from camera)
+            newTargetRotation = Math.PI; // Face backward
+          }
+          if (keysPressed.current.has('ArrowLeft')) {
+            targetVelX -= RABBIT_SPEED; // Left
+            newTargetRotation = Math.PI / 2; // Face left
+          }
+          if (keysPressed.current.has('ArrowRight')) {
+            targetVelX += RABBIT_SPEED; // Right
+            newTargetRotation = -Math.PI / 2; // Face right
+          }
 
-        // Handle diagonal movement
-        if (keysPressed.current['arrowup'] && keysPressed.current['arrowleft']) {
-          model.rotation.y = Math.PI / 4;
+          // Handle diagonal movement with correct directions
+          if (keysPressed.current.has('ArrowUp') && keysPressed.current.has('ArrowLeft')) {
+            newTargetRotation = Math.PI / 4; // Forward-left
+          }
+          if (keysPressed.current.has('ArrowUp') && keysPressed.current.has('ArrowRight')) {
+            newTargetRotation = -Math.PI / 4; // Forward-right
+          }
+          if (keysPressed.current.has('ArrowDown') && keysPressed.current.has('ArrowLeft')) {
+            newTargetRotation = 3 * Math.PI / 4; // Backward-left
+          }
+          if (keysPressed.current.has('ArrowDown') && keysPressed.current.has('ArrowRight')) {
+            newTargetRotation = -3 * Math.PI / 4; // Backward-right
+          }
+          
+          targetRotation.current = newTargetRotation;
         }
-        if (keysPressed.current['arrowup'] && keysPressed.current['arrowright']) {
-          model.rotation.y = -Math.PI / 4;
+        
+        // Apply velocity or decelerate
+        if (keysPressed.current.size > 0 && !isDecelerating.current) {
+          // Accelerate towards target velocity
+          velocity.current.x = THREE.MathUtils.lerp(velocity.current.x, targetVelX, 0.1);
+          velocity.current.z = THREE.MathUtils.lerp(velocity.current.z, targetVelZ, 0.1);
+        } else {
+          // Decelerate
+          velocity.current.x *= DECELERATION;
+          velocity.current.z *= DECELERATION;
+          
+          // Stop completely when velocity is very small
+          if (Math.abs(velocity.current.x) < MIN_VELOCITY && Math.abs(velocity.current.z) < MIN_VELOCITY) {
+            velocity.current.x = 0;
+            velocity.current.z = 0;
+            
+            if (isDecelerating.current) {
+              isDecelerating.current = false;
+              isMoving.current = false;
+              setIsRunning(false);
+            }
+          }
         }
-        if (keysPressed.current['arrowdown'] && keysPressed.current['arrowleft']) {
-          model.rotation.y = 3 * Math.PI / 4;
-        }
-        if (keysPressed.current['arrowdown'] && keysPressed.current['arrowright']) {
-          model.rotation.y = -3 * Math.PI / 4;
-        }
-
-        // Gentle idle rotation when not moving
-        if (!moved) {
-          model.rotation.y += 0.005;
+        
+        // Apply movement
+        model.position.x += velocity.current.x;
+        model.position.z += velocity.current.z;
+        
+        // Smooth rotation
+        currentRotation.current = THREE.MathUtils.lerp(currentRotation.current, targetRotation.current, 0.1);
+        model.rotation.y = currentRotation.current;
+        
+        // Smooth animation blending
+        const speedMagnitude = Math.sqrt(velocity.current.x * velocity.current.x + velocity.current.z * velocity.current.z);
+        const targetWeight = Math.min(1, speedMagnitude / (RABBIT_SPEED * 0.7)); // Normalize speed to weight
+        
+        if (sceneRef.current.hasIdleAnimation && sceneRef.current.idleAction && sceneRef.current.runAction) {
+          // Smooth blend between idle and run animations
+          const currentRunWeight = sceneRef.current.runAction.getEffectiveWeight();
+          const newRunWeight = THREE.MathUtils.lerp(currentRunWeight, targetWeight, ANIMATION_FADE_SPEED);
+          const newIdleWeight = 1 - newRunWeight;
+          
+          sceneRef.current.runAction.setEffectiveWeight(newRunWeight);
+          sceneRef.current.idleAction.setEffectiveWeight(newIdleWeight);
+          
+          if (newRunWeight > 0.01) {
+            sceneRef.current.runAction.paused = false;
+          }
+        } else if (sceneRef.current.runAction) {
+          // Single animation - fade in/out
+          const currentWeight = sceneRef.current.runAction.getEffectiveWeight();
+          const newWeight = THREE.MathUtils.lerp(currentWeight, targetWeight, ANIMATION_FADE_SPEED);
+          sceneRef.current.runAction.setEffectiveWeight(newWeight);
+          
+          if (newWeight > 0.01) {
+            sceneRef.current.runAction.paused = false;
+          } else {
+            sceneRef.current.runAction.paused = true;
+            sceneRef.current.runAction.time = 0; // Reset to sitting position
+          }
         }
       }
       
@@ -388,7 +506,7 @@ const AnimeGirlViewer = () => {
         sceneRef.current = null;
       }
     };
-  }, [isRunning]);
+  }, []);
 
   return (
     <div className="relative w-full h-screen bg-gray-900">
@@ -409,11 +527,14 @@ const AnimeGirlViewer = () => {
       
       <div className="absolute bottom-4 left-4 z-10 text-white text-xs bg-black bg-opacity-60 p-3 rounded">
         <div className="space-y-1">
-          <p><span className="text-yellow-400">🔥</span> Status: {isRunning ? 'Running!' : 'Idle'}</p>
-          <p><span className="text-green-400">🎭</span> Mixer: {mixerRef.current ? 'Ready' : 'Not loaded'}</p>
+          <p><span className="text-yellow-400">🔥</span> Status: {isRunning ? (isDecelerating.current ? 'Slowing down...' : 'Running!') : '🐰 Sitting'}</p>
+          <p><span className="text-green-400">🎭</span> Animation: {sceneRef.current?.hasIdleAnimation ? 'Dual (Idle+Run)' : 'Single (Run only)'}</p>
           <p><span className="text-blue-400">⬆️⬇️⬅️➡️</span> Arrow keys to move</p>
           <p><span className="text-gray-400">🖱️</span> Mouse drag to rotate camera</p>
           <p><span className="text-gray-400">🖱️</span> Scroll to zoom</p>
+          <p><span className="text-orange-400">🎯</span> Keys pressed: {keysPressed.current.size}</p>
+          <p><span className="text-purple-400">✨</span> Graceful deceleration system!</p>
+          <p><span className="text-cyan-400">🌟</span> Smooth animation blending!</p>
         </div>
       </div>
       
