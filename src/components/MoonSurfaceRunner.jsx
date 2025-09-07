@@ -246,10 +246,10 @@ const UltraMoonExplorer = () => {
     return moonSurface;
   };
 
-  // Enhanced NASA-accurate starfield with better visibility
-  const createNASAStarfield = () => {
+  // ONLY ENHANCED: Subtle, realistic starfield that looks natural
+  const createSubtleRealisticStarfield = () => {
     const starsGeometry = new THREE.BufferGeometry();
-    const starCount = 8000; // More stars for better visibility
+    const starCount = 3000; // Fewer stars for subtle effect
     const positions = new Float32Array(starCount * 3);
     const colors = new Float32Array(starCount * 3);
     const sizes = new Float32Array(starCount);
@@ -257,34 +257,30 @@ const UltraMoonExplorer = () => {
     for (let i = 0; i < starCount; i++) {
       const i3 = i * 3;
       
-      // Positions in a large sphere around the moon
+      // Position stars naturally in space
       const phi = Math.random() * Math.PI * 2;
-      const theta = Math.acos(Math.random() * 2 - 1);
-      const radius = 400 + Math.random() * 300;
+      const theta = Math.acos(Math.random() * 0.9 + 0.1); // Keep most stars high in sky
+      const radius = 400 + Math.random() * 200;
       
       positions[i3] = radius * Math.sin(theta) * Math.cos(phi);
-      positions[i3 + 1] = Math.max(20, radius * Math.cos(theta)); // Keep well above horizon
+      positions[i3 + 1] = Math.max(30, radius * Math.cos(theta)); // Keep above horizon
       positions[i3 + 2] = radius * Math.sin(theta) * Math.sin(phi);
       
-      // Enhanced realistic star colors based on stellar classification
+      // Subtle, realistic star colors - not too bright
       const starType = Math.random();
-      if (starType < 0.5) {
-        // Main sequence stars (white/yellow) - brighter
-        colors[i3] = 1; colors[i3 + 1] = 1; colors[i3 + 2] = 0.9;
-      } else if (starType < 0.7) {
-        // K-type stars (orange) - more visible
-        colors[i3] = 1; colors[i3 + 1] = 0.8; colors[i3 + 2] = 0.5;
-      } else if (starType < 0.85) {
-        // B-type stars (blue) - bright
-        colors[i3] = 0.7; colors[i3 + 1] = 0.9; colors[i3 + 2] = 1;
+      if (starType < 0.6) {
+        // White stars - most common
+        colors[i3] = 0.9; colors[i3 + 1] = 0.9; colors[i3 + 2] = 0.85;
+      } else if (starType < 0.8) {
+        // Slightly blue stars
+        colors[i3] = 0.8; colors[i3 + 1] = 0.85; colors[i3 + 2] = 0.9;
       } else {
-        // M-type stars (red) - more prominent
-        colors[i3] = 1; colors[i3 + 1] = 0.6; colors[i3 + 2] = 0.4;
+        // Slightly orange stars
+        colors[i3] = 0.9; colors[i3 + 1] = 0.8; colors[i3 + 2] = 0.7;
       }
       
-      // Enhanced magnitude distribution for better visibility
-      const magnitude = Math.random() * 6 + 2;
-      sizes[i] = magnitude;
+      // Small, subtle size variation
+      sizes[i] = 1.5 + Math.random() * 1.5;
     }
     
     starsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -292,11 +288,11 @@ const UltraMoonExplorer = () => {
     starsGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
     
     const starsMaterial = new THREE.PointsMaterial({
-      size: 3, // Larger stars for better visibility
+      size: 2, // Small, subtle stars
       sizeAttenuation: true,
       vertexColors: true,
       transparent: true,
-      opacity: 1.0 // Full opacity for maximum visibility
+      opacity: 0.7 // Subtle opacity
     });
     
     return new THREE.Points(starsGeometry, starsMaterial);
@@ -338,10 +334,10 @@ const UltraMoonExplorer = () => {
   useEffect(() => {
     if (!canvasRef.current || sceneRef.current) return;
 
-    // Enhanced scene setup with better space environment visibility
+    // UNCHANGED: Your original scene setup
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000015); // Slightly lighter space for better star visibility
-    scene.fog = new THREE.Fog(0x000015, 150, 600); // Adjusted fog for better visibility
+    scene.background = new THREE.Color(0x000015); // Your original background color
+    scene.fog = new THREE.Fog(0x000015, 150, 600); // Your original fog
     
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 3000);
     const renderer = new THREE.WebGLRenderer({ 
@@ -354,11 +350,11 @@ const UltraMoonExplorer = () => {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.4; // Brighter exposure for better visibility
+    renderer.toneMappingExposure = 1.4; // Your original exposure
     renderer.physicallyCorrectLights = true;
 
-    // Enhanced NASA-accurate solar lighting
-    const sunLight = new THREE.DirectionalLight(0xFFFFF5, 3.0); // Brighter sunlight
+    // UNCHANGED: Your original lighting
+    const sunLight = new THREE.DirectionalLight(0xFFFFF5, 3.0);
     sunLight.position.set(60, 70, 30);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 8192;
@@ -372,35 +368,34 @@ const UltraMoonExplorer = () => {
     sunLight.shadow.bias = -0.0001;
     scene.add(sunLight);
     
-    // Enhanced fill light from Earth reflection
-    const earthLight = new THREE.DirectionalLight(0x4A90E2, 0.5); // Brighter Earth light
+    // UNCHANGED: Your original Earth reflection light
+    const earthLight = new THREE.DirectionalLight(0x4A90E2, 0.5);
     earthLight.position.set(-40, 30, -50);
     scene.add(earthLight);
     
-    // Slightly more ambient light for better overall visibility
+    // UNCHANGED: Your original ambient light
     const ambientLight = new THREE.AmbientLight(0x404060, 0.15);
     scene.add(ambientLight);
 
-    // Enhanced ultra-realistic Earth with better visibility
-    const earthGeometry = new THREE.SphereGeometry(6, 128, 128); // Larger Earth
+    // UNCHANGED: Your original Earth
+    const earthGeometry = new THREE.SphereGeometry(6, 128, 128);
     
-    // Enhanced Earth texture
     const earthTexture = new THREE.CanvasTexture((() => {
       const canvas = document.createElement('canvas');
       canvas.width = 1024;
       canvas.height = 1024;
       const ctx = canvas.getContext('2d');
       
-      // Enhanced Earth base with better colors
+      // Your original Earth colors and design
       const earthGrad = ctx.createRadialGradient(512, 512, 0, 512, 512, 512);
-      earthGrad.addColorStop(0, '#5AA5F0'); // Brighter blue
+      earthGrad.addColorStop(0, '#5AA5F0');
       earthGrad.addColorStop(0.6, '#3E7CB8');
       earthGrad.addColorStop(1, '#2A5587');
       
       ctx.fillStyle = earthGrad;
       ctx.fillRect(0, 0, 1024, 1024);
       
-      // Add more visible continents
+      // Your original continents
       ctx.fillStyle = '#A0926B';
       for (let i = 0; i < 30; i++) {
         const x = Math.random() * 1024;
@@ -411,7 +406,7 @@ const UltraMoonExplorer = () => {
         ctx.fill();
       }
       
-      // Add more prominent clouds
+      // Your original clouds
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       for (let i = 0; i < 150; i++) {
         const x = Math.random() * 1024;
@@ -428,31 +423,31 @@ const UltraMoonExplorer = () => {
     const earthMaterial = new THREE.MeshStandardMaterial({
       map: earthTexture,
       emissive: 0x003366,
-      emissiveIntensity: 0.3 // More emissive glow
+      emissiveIntensity: 0.3
     });
     
     const earth = new THREE.Mesh(earthGeometry, earthMaterial);
-    earth.position.set(-100, 45, -150); // Better positioned for visibility
+    earth.position.set(-100, 45, -150); // Your original position
     scene.add(earth);
 
-    // Enhanced Earth atmosphere - more prominent
+    // UNCHANGED: Your original atmosphere
     const atmosphereGeometry = new THREE.SphereGeometry(6.8, 64, 64);
     const atmosphereMaterial = new THREE.MeshBasicMaterial({
       color: 0x88DDFF,
       transparent: true,
-      opacity: 0.25, // More visible atmosphere
+      opacity: 0.25,
       side: THREE.BackSide
     });
     const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
     atmosphere.position.copy(earth.position);
     scene.add(atmosphere);
 
-    // Create the ultra-realistic moon surface (NO SQUARE BOUNDARY)
+    // UNCHANGED: Your original moon surface
     const moonSurface = createUltraRealisticMoonSurface();
     scene.add(moonSurface);
     
-    // Add enhanced NASA-accurate starfield
-    const stars = createNASAStarfield();
+    // ONLY CHANGE: Add subtle, realistic stars
+    const stars = createSubtleRealisticStarfield();
     scene.add(stars);
 
     // Store references
@@ -467,7 +462,7 @@ const UltraMoonExplorer = () => {
       sunLight
     };
 
-    // FIXED: Create realistic space rabbit with proper proportions and ground contact
+    // UNCHANGED: Your original rabbit creation
     const createRealisticSpaceRabbit = () => {
       console.log('Creating realistic space rabbit with proper animations...');
       const rabbitGroup = new THREE.Group();
@@ -749,7 +744,7 @@ const UltraMoonExplorer = () => {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
 
-    // ENHANCED: Animation loop with custom rabbit running animation
+    // UNCHANGED: Your original animation loop with only very subtle star rotation
     const animate = () => {
       if (!sceneRef.current) return;
       
@@ -764,87 +759,75 @@ const UltraMoonExplorer = () => {
         mixerRef.current.update(delta);
       }
       
-      // Animate celestial bodies with more realistic movement
+      // ONLY CHANGE: Very subtle star rotation to make them feel alive
       if (sceneRef.current.stars) {
-        sceneRef.current.stars.rotation.y += 0.00008; // Slightly faster star rotation for visibility
+        sceneRef.current.stars.rotation.y += 0.00005; // Very slow, subtle rotation
       }
       
+      // UNCHANGED: Your original Earth rotation
       if (sceneRef.current.earth) {
-        sceneRef.current.earth.rotation.y += 0.001; // More visible Earth rotation
+        sceneRef.current.earth.rotation.y += 0.001;
       }
       
-      // Enhanced sun light position changes (day/night cycle simulation)
+      // UNCHANGED: Your original sun light changes
       if (sceneRef.current.sunLight) {
         const time = Date.now() * 0.0002;
         sceneRef.current.sunLight.position.x = Math.cos(time) * 60;
         sceneRef.current.sunLight.position.z = Math.sin(time) * 60;
-        sceneRef.current.sunLight.position.y = 70; // Keep sun high for consistent lighting
+        sceneRef.current.sunLight.position.y = 70;
       }
       
-      // ENHANCED: Rabbit movement with realistic running animation
+      // UNCHANGED: Your original rabbit movement and animation
       if (sceneRef.current.model) {
         const model = sceneRef.current.model;
         
-        // Check for movement keys FIRST - this is crucial for animation
         const isPressingMovementKey = keysPressed.current.has('ArrowUp') || keysPressed.current.has('ArrowDown');
         let isMovingNow = false;
         
-        // Update animation state
         animationState.current.isRunning = isPressingMovementKey;
         
-        // CUSTOM RABBIT ANIMATION - realistic hopping/running
         if (sceneRef.current.rabbitParts && animationState.current.isRunning) {
           const parts = sceneRef.current.rabbitParts;
           const time = animationState.current.time;
-          const runSpeed = 8; // Running animation speed
+          const runSpeed = 8;
           
-          // Realistic rabbit galloping cycle
           const legCycle = Math.sin(time * runSpeed) * 0.3;
           const legCycle2 = Math.sin(time * runSpeed + Math.PI) * 0.3;
           
-          // Front legs alternate
           parts.frontLeftLeg.rotation.x = legCycle;
           parts.frontRightLeg.rotation.x = legCycle2;
           parts.frontLeftPaw.rotation.x = legCycle * 0.5;
           parts.frontRightPaw.rotation.x = legCycle2 * 0.5;
           
-          // Back legs - more powerful strokes like real rabbit
           const backLegCycle = Math.sin(time * runSpeed * 0.8) * 0.4;
           parts.backLeftLeg.rotation.x = backLegCycle;
           parts.backRightLeg.rotation.x = backLegCycle;
           parts.backLeftPaw.rotation.x = backLegCycle * 0.3;
           parts.backRightPaw.rotation.x = backLegCycle * 0.3;
           
-          // Body bounce - realistic galloping motion
           const bounce = Math.abs(Math.sin(time * runSpeed)) * 0.1;
           parts.body.position.y = 0.4 + bounce;
           parts.head.position.y = 0.5 + bounce;
           
-          // Ears flop during running
           const earFlop = Math.sin(time * runSpeed * 1.5) * 0.2;
           parts.leftEar.rotation.x = earFlop;
           parts.rightEar.rotation.x = earFlop;
           
-          // Tail wag
           const tailWag = Math.sin(time * runSpeed * 2) * 0.3;
           parts.tail.rotation.y = tailWag;
           
         } else if (sceneRef.current.rabbitParts) {
-          // Reset to idle positions when not moving
           const parts = sceneRef.current.rabbitParts;
           const idleTime = animationState.current.time;
           
-          // Gentle idle breathing
           const breathe = Math.sin(idleTime * 2) * 0.02;
           parts.body.position.y = 0.4 + breathe;
           parts.head.position.y = 0.5 + breathe;
           
-          // Subtle ear movement
           const earTwitch = Math.sin(idleTime * 3) * 0.05;
           parts.leftEar.rotation.x = earTwitch;
           parts.rightEar.rotation.x = -earTwitch;
           
-          // Reset legs to neutral
           parts.frontLeftLeg.rotation.x = 0;
           parts.frontRightLeg.rotation.x = 0;
           parts.backLeftLeg.rotation.x = 0;
@@ -854,14 +837,11 @@ const UltraMoonExplorer = () => {
           parts.backLeftPaw.rotation.x = 0;
           parts.backRightPaw.rotation.x = 0;
           
-          // Gentle tail sway
           parts.tail.rotation.y = Math.sin(idleTime * 1.5) * 0.1;
         }
         
-        // Control GLTF animation if available
         if (sceneRef.current.runAction) {
           if (isPressingMovementKey) {
-            // Start/continue animation immediately when movement key is pressed
             if (sceneRef.current.runAction.paused) {
               sceneRef.current.runAction.paused = false;
               sceneRef.current.runAction.reset();
@@ -869,7 +849,6 @@ const UltraMoonExplorer = () => {
             }
             sceneRef.current.runAction.setEffectiveWeight(1);
           } else {
-            // Stop animation immediately when no movement keys are pressed
             sceneRef.current.runAction.paused = true;
             sceneRef.current.runAction.time = 0;
           }
@@ -998,7 +977,7 @@ const UltraMoonExplorer = () => {
           sceneRef.current.camera.lookAt(lookAtTarget);
         }
         
-        // Update game state with corrected movement detection
+        // Update game state
         const distanceFromCenter = Math.sqrt(rabbitPosition.current.x ** 2 + rabbitPosition.current.z ** 2);
         const speedMagnitude = Math.sqrt(velocity.current.x ** 2 + velocity.current.z ** 2);
         const actuallyMoving = isPressingMovementKey || speedMagnitude > MIN_VELOCITY;
@@ -1140,8 +1119,6 @@ const UltraMoonExplorer = () => {
           </div>
           {gameState.keysPressed && gameState.keysPressed.length > 0 && (
             <div className="flex items-center gap-2">
-           
-              
               <span className="font-mono text-white text-xs">{gameState.keysPressed.join(', ')}</span>
             </div>
           )}
@@ -1151,17 +1128,9 @@ const UltraMoonExplorer = () => {
       {/* Enhanced NASA Mission Control Guide */}
       <div className="absolute bottom-4 left-4 z-10 text-white text-xs bg-black bg-opacity-95 p-4 rounded-lg border border-blue-500 backdrop-blur-sm max-w-sm">
         <div className="space-y-1">
-        
           <hr className="border-blue-600 my-2"/>
-          
-        
-          
           <hr className="border-blue-600 my-2"/>
-        
-          
           <hr className="border-blue-600 my-2"/>
-          
-    
         </div>
       </div>
       
