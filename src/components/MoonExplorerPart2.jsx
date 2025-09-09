@@ -684,12 +684,12 @@ const MoonExplorerPart2 = () => {
       {gameState.position && parseFloat(gameState.position.distanceFromCenter) > MOON_RADIUS * 1.1 && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-auto">
           <div className="bg-orange-900 bg-opacity-90 text-white p-4 rounded-lg border-2 border-orange-500 animate-pulse">
-            <div className="text-center">
+            {/* <div className="text-center">
               <p className="text-3xl mb-2">🌌</p>
               <p className="font-bold text-orange-300">DEEP SPACE EXPLORATION!</p>
               <p className="text-sm">Your rabbit is venturing far from the landing zone</p>
               <p className="text-xs text-gray-300">Distance: {gameState.position.distanceFromCenter}m</p>
-            </div>
+            </div> */}
           </div>
         </div>
       )}

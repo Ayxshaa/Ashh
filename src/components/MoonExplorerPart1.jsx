@@ -512,16 +512,16 @@ const MoonExplorerPart1 = () => {
       )}
       
       <div className="absolute bottom-4 left-4 z-10 text-white text-sm bg-black bg-opacity-95 p-4 rounded-lg border border-blue-500 max-w-md">
-        <div className="text-cyan-400 font-bold mb-2">🌙 PART 1: LUNAR ENVIRONMENT</div>
-        <div className="space-y-1 text-xs">
+        {/* <div className="text-cyan-400 font-bold mb-2">🌙 PART 1: LUNAR ENVIRONMENT</div> */}
+        {/* <div className="space-y-1 text-xs">
           <div>• NASA-accurate moon surface texture</div>
           <div>• Realistic lighting and shadows</div>
           <div>• Earth visible in distance</div>
           <div>• Subtle starfield background</div>
           <div>• Terrain height mapping ready</div>
-        </div>
+        </div> */}
         <div className="mt-3 p-2 bg-blue-900 bg-opacity-50 rounded">
-          <p className="text-blue-300 text-xs font-bold">Ready for Part 2: Rabbit Controller</p>
+          {/* <p className="text-blue-300 text-xs font-bold">Ready for Part 2: Rabbit Controller</p> */}
         </div>
       </div>
       
