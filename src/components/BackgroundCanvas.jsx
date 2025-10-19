@@ -1,13 +1,14 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
-const BackgroundCanvas = () => {
+const BackgroundCanvas = ({ isZooming, onZoomComplete }) => {
   const canvasRef = useRef(null);
   const sceneRef = useRef(null);
   const moonRef = useRef(null);
   const worldRef = useRef(null);
   const isJourneyStarted = useRef(false);
   const orbitControlsRef = useRef(null);
+  const [isZoomingToMoon, setIsZoomingToMoon] = useState(false);
 
   useEffect(() => {
     if (!canvasRef.current || sceneRef.current) return;
@@ -464,10 +465,68 @@ const BackgroundCanvas = () => {
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     };
+
+    // NEW: Moon Zoom Journey Function
+    const startMoonZoomJourney = () => {
+      if (isJourneyStarted.current) return;
+      
+      isJourneyStarted.current = true;
+      setIsZoomingToMoon(true);
+      canvas.style.cursor = 'default';
+      controls.enabled = false; // Disable controls during zoom
+      
+      const startPosition = camera.position.clone();
+      const startRotation = camera.rotation.clone();
+      
+      // Target position - very close to moon surface
+      const targetPosition = new THREE.Vector3(0, 0, 4.2); // Just above moon surface
+      
+      const duration = 4000; // 4 seconds zoom
+      const startTime = Date.now();
+      
+      const animateZoom = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Smooth easing with acceleration at the end (like diving into the moon)
+        const easeProgress = progress < 0.7 
+          ? 2 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+        
+        // Interpolate camera position
+        camera.position.lerpVectors(startPosition, targetPosition, easeProgress);
+        camera.lookAt(0, 0, 0);
+        
+        // Add slight rotation effect during zoom for more dynamic feel
+        const rotationIntensity = Math.sin(progress * Math.PI * 2) * 0.02;
+        camera.rotation.z = startRotation.z + rotationIntensity;
+        
+        // Add screen shake effect in the last 20% of zoom
+        if (progress > 0.8) {
+          const shakeIntensity = (progress - 0.8) * 5;
+          const shakeX = (Math.random() - 0.5) * shakeIntensity * 0.001;
+          const shakeY = (Math.random() - 0.5) * shakeIntensity * 0.001;
+          camera.position.x += shakeX;
+          camera.position.y += shakeY;
+        }
+        
+        if (progress < 1) {
+          requestAnimationFrame(animateZoom);
+        } else {
+          // Zoom complete - trigger SpaceJourney
+          setTimeout(() => {
+            setIsZoomingToMoon(false);
+            if (onZoomComplete) {
+              onZoomComplete(); // This will start SpaceJourney
+            }
+          }, 500); // Small delay before starting SpaceJourney
+        }
+      };
+      
+      animateZoom();
+    };
     
-    window.addEventListener('resize', onResize);
-    
-    // Enhanced journey animation
+    // Enhanced journey animation (keeping the original for reference)
     const startJourney = () => {
       isJourneyStarted.current = true;
       canvas.style.cursor = 'default';
@@ -511,6 +570,7 @@ const BackgroundCanvas = () => {
               } else {
                 isJourneyStarted.current = false;
                 canvas.style.cursor = 'grab';
+                controls.enabled = true;
                 controls.update();
               }
             };
@@ -523,30 +583,40 @@ const BackgroundCanvas = () => {
       animateJourney();
     };
     
-    // Store scene reference
+    window.addEventListener('resize', onResize);
+    
+    // Store scene reference with new zoom function
     sceneRef.current = { 
       scene, 
       renderer, 
       camera, 
       controls,
       startJourney,
+      startMoonZoomJourney, // NEW: Add zoom journey function
       moon,
       world
     };
     
-    // Journey event listener
+    // Journey event listeners
     const handleJourneyStart = () => {
       if (sceneRef.current) {
         sceneRef.current.startJourney();
       }
     };
+
+    const handleMoonZoomStart = () => {
+      if (sceneRef.current) {
+        sceneRef.current.startMoonZoomJourney();
+      }
+    };
     
     window.addEventListener('startMoonJourney', handleJourneyStart);
+    window.addEventListener('startMoonZoom', handleMoonZoomStart);
     
-    // Cleanup
     return () => {
       window.removeEventListener('resize', onResize);
       window.removeEventListener('startMoonJourney', handleJourneyStart);
+      window.removeEventListener('startMoonZoom', handleMoonZoomStart);
       
       if (controls) {
         controls.dispose();
@@ -567,56 +637,65 @@ const BackgroundCanvas = () => {
         worldMaterial.dispose();
       }
     };
-  }, []);
+  }, [onZoomComplete]);
 
   return (
     <div className="fixed inset-0 z-0">
       <canvas ref={canvasRef} className="w-full h-full block" />
       
-      {/* Enhanced UI */}
-      <div className="absolute top-6 left-6 text-white z-10 bg-black/40 rounded-xl p-4 backdrop-blur-md border border-white/10">
-        <div className="text-sm font-medium space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-blue-400">🖱️</span>
-            <span>Drag to orbit around moon</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-green-400">🔄</span>
-            <span>Scroll to zoom in/out</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-purple-400">📱</span>
-            <span>Touch controls supported</span>
+      {/* Enhanced UI - Hide during zoom */}
+      {!isZooming && !isZoomingToMoon && (
+        <div className="absolute top-6 left-6 text-white z-10 bg-black/40 rounded-xl p-4 backdrop-blur-md border border-white/10">
+          <div className="text-sm font-medium space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-blue-400">🖱️</span>
+              <span>Drag to orbit around moon</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-green-400">🔄</span>
+              <span>Scroll to zoom in/out</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-purple-400">📱</span>
+              <span>Touch controls supported</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
       
-      {/* Journey Button */}
-      <button
-        onClick={() => {
-          window.dispatchEvent(new CustomEvent('startMoonJourney'));
-        }}
-        className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 group"
-      >
-        <div className="px-10 py-4 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 text-white font-bold text-lg rounded-full shadow-2xl transition-all duration-500 hover:scale-105 hover:shadow-blue-500/30 backdrop-blur-sm border border-blue-400/30 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-          <span className="relative flex items-center gap-3">
-            🚀 <span>Journey to the Moon</span> 🌙
-          </span>
+      {/* Journey Button - Hide during zoom */}
+      {!isZooming && !isZoomingToMoon && (
+        <button
+          onClick={() => {
+            // Changed to trigger moon zoom instead of regular journey
+            window.dispatchEvent(new CustomEvent('startMoonZoom'));
+          }}
+          className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 group"
+        >
+          <div className="px-10 py-4 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 text-white font-bold text-lg rounded-full shadow-2xl transition-all duration-500 hover:scale-105 hover:shadow-blue-500/30 backdrop-blur-sm border border-blue-400/30 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+            <span className="relative flex items-center gap-3">
+              🚀 <span>Begin Your Journey</span> 🌙
+            </span>
+          </div>
+        </button>
+      )}
+
+      {/* Zoom Status Overlay */}
+      {isZoomingToMoon && (
+        <div className="absolute inset-0 pointer-events-none z-20">
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <div className="bg-black/70 text-white px-8 py-4 rounded-xl backdrop-blur-md border border-blue-400/30 text-center">
+              <div className="text-xl font-bold mb-2">🚀 Approaching Moon Surface...</div>
+              <div className="text-sm text-blue-300">Preparing for lunar descent</div>
+            </div>
+          </div>
+          
+          {/* Zoom effect overlay */}
+          <div className="absolute inset-0 bg-gradient-radial from-transparent via-transparent to-black/20"></div>
         </div>
-      </button>
+      )}
       
-      {/* Moon Info Panel */}
-      {/* <div className="absolute bottom-8 right-8 text-white z-10 bg-black/30 rounded-xl p-4 backdrop-blur-md border border-white/10 max-w-xs">
-        <h3 className="font-bold text-lg mb-2 text-blue-300">🌙 Luna</h3>
-        <div className="text-sm space-y-1 opacity-90">
-          <div>Distance: ~384,400 km</div>
-          <div>Diameter: 3,474 km</div>
-          <div>Age: ~4.5 billion years</div>
-          <div>Gravity: 1.62 m/s²</div>
-        </div>
-      </div>
-       */}
       {/* Atmospheric Effects */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-blue-900/5 to-transparent"></div>
