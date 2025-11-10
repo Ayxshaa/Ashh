@@ -6,6 +6,7 @@ const BackgroundCanvas = ({ isZooming, onZoomComplete }) => {
   const sceneRef = useRef(null);
   const moonRef = useRef(null);
   const worldRef = useRef(null);
+  const starsRef = useRef(null);
   const isJourneyStarted = useRef(false);
   const orbitControlsRef = useRef(null);
   const [isZoomingToMoon, setIsZoomingToMoon] = useState(false);
@@ -32,8 +33,9 @@ const BackgroundCanvas = ({ isZooming, onZoomComplete }) => {
     renderer.setClearColor(0x000011, 1);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.physicallyCorrectLights = true;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    renderer.toneMappingExposure = 1.0;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     
     // Enhanced texture URLs
@@ -43,6 +45,10 @@ const BackgroundCanvas = ({ isZooming, onZoomComplete }) => {
     
     // Create ultra-detailed moon geometry
     const moonGeometry = new THREE.SphereGeometry(4, 256, 256);
+    // Provide a second UV set for AO map compatibility
+    if (moonGeometry.attributes.uv) {
+      moonGeometry.setAttribute('uv2', moonGeometry.attributes.uv);
+    }
     
     // Texture loader with better settings
     const textureLoader = new THREE.TextureLoader();
@@ -53,32 +59,28 @@ const BackgroundCanvas = ({ isZooming, onZoomComplete }) => {
       texture.minFilter = THREE.LinearMipMapLinearFilter;
       texture.magFilter = THREE.LinearFilter;
       texture.generateMipmaps = true;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     });
     
     const moonDisplacement = textureLoader.load(displacementURL, (texture) => {
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     });
     
     const starfieldTexture = textureLoader.load(worldURL, (texture) => {
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      texture.colorSpace = THREE.SRGBColorSpace;
     });
     
-    // Create ultra-realistic moon material
-    const moonMaterial = new THREE.MeshPhysicalMaterial({
+    // Unlit material so the moon looks the same from all viewing angles
+    const moonMaterial = new THREE.MeshBasicMaterial({
       color: 0xffffff,
-      map: moonTexture,
-      displacementMap: moonDisplacement,
-      displacementScale: 0.2,
-      normalMap: moonDisplacement,
-      normalScale: new THREE.Vector2(0.5, 0.5),
-      roughness: 0.95,
-      metalness: 0.02,
-      clearcoat: 0.0,
-      reflectivity: 0.01,
-      ior: 1.45
+      map: moonTexture
     });
     
     const moon = new THREE.Mesh(moonGeometry, moonMaterial);
@@ -100,20 +102,74 @@ const BackgroundCanvas = ({ isZooming, onZoomComplete }) => {
       map: starfieldTexture,
       side: THREE.BackSide,
       transparent: false,
-      opacity: 1.0
+      opacity: 0.9
     });
     
     const world = new THREE.Mesh(worldGeometry, worldMaterial);
     scene.add(world);
     worldRef.current = world;
     
+    // High-fidelity procedural starfield (crisp, no blur)
+    const createStarSpriteTexture = () => {
+      const size = 64;
+      const canvasStar = document.createElement('canvas');
+      canvasStar.width = size;
+      canvasStar.height = size;
+      const ctx = canvasStar.getContext('2d');
+      const grd = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+      grd.addColorStop(0.0, 'rgba(255,255,255,1.0)');
+      grd.addColorStop(0.3, 'rgba(255,255,255,0.9)');
+      grd.addColorStop(0.7, 'rgba(255,255,255,0.25)');
+      grd.addColorStop(1.0, 'rgba(255,255,255,0.0)');
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+      ctx.fill();
+      const tex = new THREE.CanvasTexture(canvasStar);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return tex;
+    };
+    
+    const starCount = 8000;
+    const starPositions = new Float32Array(starCount * 3);
+    const innerRadius = 600;
+    const outerRadius = 1400;
+    for (let i = 0; i < starCount; i++) {
+      // Distribute stars in a thick spherical shell far from the origin
+      const r = Math.sqrt(Math.random()) * (outerRadius - innerRadius) + innerRadius;
+      const theta = Math.acos(THREE.MathUtils.randFloatSpread(2)); // 0..PI
+      const phi = Math.random() * Math.PI * 2;
+      const x = r * Math.sin(theta) * Math.cos(phi);
+      const y = r * Math.sin(theta) * Math.sin(phi);
+      const z = r * Math.cos(theta);
+      const idx = i * 3;
+      starPositions[idx] = x;
+      starPositions[idx + 1] = y;
+      starPositions[idx + 2] = z;
+    }
+    const starsGeometry = new THREE.BufferGeometry();
+    starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    const starsMaterial = new THREE.PointsMaterial({
+      size: 2.0,
+      sizeAttenuation: true,
+      map: createStarSpriteTexture(),
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.9,
+      color: 0xffffff
+    });
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    scene.add(stars);
+    starsRef.current = stars;
+    
     // Realistic lighting setup
-    const ambientLight = new THREE.AmbientLight(0x0f0f23, 0.05);
+    const ambientLight = new THREE.AmbientLight(0x0f0f23, 0.02);
     scene.add(ambientLight);
     
     // Main sun light (more realistic sun lighting)
-    const sunLight = new THREE.DirectionalLight(0xffffff, 4);
-    sunLight.position.set(25, 15, 10);
+    const sunLight = new THREE.DirectionalLight(0xffffff, 5);
+    sunLight.position.set(35, 20, 15);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 8192;
     sunLight.shadow.mapSize.height = 8192;
@@ -128,13 +184,17 @@ const BackgroundCanvas = ({ isZooming, onZoomComplete }) => {
     scene.add(sunLight);
     
     // Subtle blue fill light for space ambiance
-    const spaceLight = new THREE.DirectionalLight(0x6699ff, 0.15);
-    spaceLight.position.set(-15, -10, -15);
-    scene.add(spaceLight);
+    const hemiLight = new THREE.HemisphereLight(0x334466, 0x000000, 0.18);
+    scene.add(hemiLight);
+    
+    // Soft fill/bounce light opposite to sun to avoid pitch-black far side
+    const bounceLight = new THREE.DirectionalLight(0x99aacc, 0.6);
+    bounceLight.position.set(-35, -18, -20);
+    scene.add(bounceLight);
     
     // Rim lighting for dramatic effect
-    const rimLight = new THREE.PointLight(0x88aaff, 0.8, 100, 2);
-    rimLight.position.set(8, 12, 15);
+    const rimLight = new THREE.PointLight(0x88aaff, 0.4, 100, 2);
+    rimLight.position.set(10, 14, 18);
     scene.add(rimLight);
     
     // Enhanced Orbit Controls
@@ -444,13 +504,28 @@ const BackgroundCanvas = ({ isZooming, onZoomComplete }) => {
       
       // Realistic moon rotation (synchronized with Earth's moon)
       if (moonRef.current) {
-        moonRef.current.rotation.y += 0.0005;
+        moonRef.current.rotation.y += 0.0012;
       }
       
       // Very subtle starfield rotation
       if (worldRef.current) {
         worldRef.current.rotation.y += 0.00002;
         worldRef.current.rotation.x += 0.00001;
+        // Lower opacity to let procedural stars dominate
+        if (worldRef.current.material && worldRef.current.material.opacity !== 0.3) {
+          worldRef.current.material.opacity = 0.3;
+        }
+      }
+      if (starsRef.current) {
+        starsRef.current.rotation.y += 0.00006;
+        // Subtle global twinkle
+        const t = Date.now() * 0.0005;
+        const base = 0.88;
+        const amp = 0.06;
+        const mat = starsRef.current.material;
+        if (mat) {
+          mat.opacity = base + Math.sin(t) * amp;
+        }
       }
       
       renderer.render(scene, camera);
@@ -585,6 +660,24 @@ const BackgroundCanvas = ({ isZooming, onZoomComplete }) => {
     
     window.addEventListener('resize', onResize);
     
+    // Viewer-follow directional light to present a "full moon" look for the visible side
+    const viewerLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    viewerLight.position.copy(camera.position).setLength(35);
+    scene.add(viewerLight);
+    scene.add(viewerLight.target);
+    viewerLight.target.position.set(0, 0, 0);
+    
+    // Keep the viewer light aligned with the camera so the side you look at is lit
+    const originalRender = renderer.render.bind(renderer);
+    renderer.render = (scn, cam) => {
+      if (moonRef.current) {
+        viewerLight.position.copy(cam.position).setLength(35);
+        viewerLight.target.position.copy(moonRef.current.position);
+        viewerLight.target.updateMatrixWorld();
+      }
+      originalRender(scn, cam);
+    };
+    
     // Store scene reference with new zoom function
     sceneRef.current = { 
       scene, 
@@ -635,6 +728,13 @@ const BackgroundCanvas = ({ isZooming, onZoomComplete }) => {
       }
       if (worldMaterial) {
         worldMaterial.dispose();
+      }
+      if (starsRef.current) {
+        if (starsRef.current.geometry) starsRef.current.geometry.dispose();
+        if (starsRef.current.material) {
+          if (starsRef.current.material.map) starsRef.current.material.map.dispose();
+          starsRef.current.material.dispose();
+        }
       }
     };
   }, [onZoomComplete]);
