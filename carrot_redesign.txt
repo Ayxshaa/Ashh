@@ -1,0 +1,125 @@
+CARROT REDESIGN — FROM BORING TO STRIKING
+==========================================
+
+Right now the carrots are: basic orange cone + 3 small green cones + a point light.
+They look like a kid's first Three.js project. Here's what to do instead.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROBLEM BREAKDOWN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. The body is a plain ConeGeometry — no variation, no texture, no surface detail.
+2. The leaves are just 3 identical small cones — same shape, same axis, no life.
+3. The animation is mechanical — constant speed spin + a rigid bob. Predictable.
+4. The glow is a single flat orange PointLight — looks like a lamp, not an artifact.
+5. Nothing tells the player "this is interactive" — no personality, no draw.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTION A — GLOWING MOON ARTIFACT (Recommended)
+Lean into the sci-fi moon theme. These carrots are ancient relics, not vegetables.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Body:
+- Replace ConeGeometry with a LatheGeometry built from a custom curve
+  so the carrot tapers with a subtle waist and a pointed tip — organic, not perfect.
+- Material: MeshPhysicalMaterial with transmission: 0.3, roughness: 0.2
+  This gives a semi-translucent crystal/gem look — like it's lit from inside.
+- Color: shift from flat orange (0xFF8C00) to a deep amber-gold (0xE8820C)
+  with emissiveIntensity bumped to 0.8 so it pulses visibly in the dark.
+
+Leaves:
+- Ditch the 3 cones. Replace with 5-7 thin, elongated CylinderGeometry
+  scaled to flat "blade" shapes — like grass blades or crystal shards fanning out.
+- Each leaf at a different height and angle — irregular, natural-looking spread.
+- Color: deep teal-green (0x00AA77) instead of forest green — more otherworldly.
+- Add a faint emissive to the leaves too (0x004433) so they faintly glow.
+
+Glow/FX:
+- Use 2 PointLights instead of 1:
+    inner: orange-white (0xFFCC88), intensity 1.5, distance 3 — tight core glow
+    outer: deep amber (0xFF4400), intensity 0.4, distance 8 — atmospheric bleed
+- Add a SpriteMaterial with a radial gradient texture as a "lens flare halo"
+  positioned at y: 0.5 — this is a single billboard quad that always faces camera.
+  Cheap but very effective.
+
+Animation — make it feel alive, not mechanical:
+- Instead of constant rotation speed (0.02 every frame), use sine-based easing:
+    carrot.rotation.y = Math.sin(time * 0.0008) * Math.PI * 2
+  This makes it oscillate slowly back and forth — like it's scanning.
+- For the bob, combine two sine waves at different frequencies:
+    y = sin(time * 0.002) * 0.25 + sin(time * 0.0035) * 0.08
+  Feels more alive, less clock-like.
+- Add a subtle scale pulse: carrot.scale.setScalar(1 + Math.sin(time * 0.003) * 0.04)
+  Almost invisible but gives it a "breathing" quality.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTION B — DARK CRYSTAL SHARDS
+If you want to drop the carrot look entirely and go full abstract sci-fi.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Replace the whole model with a cluster of 5 OctahedronGeometry shards:
+- 1 tall central shard (scale y: 2.5), 4 smaller ones orbiting it
+- MeshPhysicalMaterial: color 0x1a0a3a (deep purple), metalness 0.9, roughness 0.1,
+  emissive 0x8800ff, emissiveIntensity 0.6 — glowing dark crystals
+- The 4 small shards orbit the center slowly on different axes
+- PointLight color: 0xAA44FF (purple-violet)
+
+This fits the moon theme perfectly and looks nothing like "kids game".
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTION C — MINIMAL FIX (quick, keeps carrot shape)
+If you want to keep it recognizable as a carrot but look polished.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Just change these values in Carrot3D.jsx:
+
+Body material:
+  color: 0xCC5500       (burnt orange, less neon)
+  roughness: 0.3        (was 0.6 — smoother = more premium)
+  metalness: 0.5        (was 0.2 — adds reflective edge)
+  emissive: 0x992200
+  emissiveIntensity: 0.9 (was 0.5 — brighter inner glow)
+
+Leaf changes:
+  Replace 3 leaves with 6, alternating heights (y: 0.7 and y: 1.1)
+  Smaller geometry (0.15 radius, 0.6 height) — more delicate, less chunky
+  color: 0x00BB66       (brighter, more vivid green)
+  emissiveIntensity: 0.5 (was 0.2)
+
+Light:
+  Two lights: one warm (0xFFAA44, intensity 2.0, distance 4)
+              one cool blue rim (0x0044FF, intensity 0.3, distance 6)
+  The blue rim gives it a moon-reflected edge that reads as "environment-aware"
+
+Animation:
+  Bob speed: time * 0.0015 (was 0.003 — slower = more serene)
+  Bob range: 0.15 (was 0.3 — subtle is more mature)
+  Add: carrot.rotation.z = Math.sin(time * 0.001) * 0.05 — slight tilt sway
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+QUICK PRIORITY LIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Do these first for the most impact with least effort:
+
+1. Bump emissiveIntensity to 0.9 on the body — single line change, big visual jump
+2. Add a second cool-blue PointLight (0x2244FF) — makes it feel like the moon is
+   casting light on it, very space-appropriate
+3. Slow down the bob animation (x0.5 the speed, x0.5 the range)
+4. Replace the 3 leaf cones with 6 smaller varied-angle ones
+5. Change leaf color to 0x00CC77 (vivid teal-green vs. plain forest green)
+
+These 5 changes take maybe 15 minutes and completely change the feel.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE TO EDIT: src/components/carrot/Carrot3D.jsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+All changes above live in createCarrot3D() and updateCarrotAnimation().
+No other files need touching for visual changes.

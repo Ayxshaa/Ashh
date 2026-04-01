@@ -525,6 +525,13 @@ const MoonExplorerPart2 = () => {
         // Apply position to model
         model.position.set(rabbitPosition.current.x, rabbitPosition.current.y, rabbitPosition.current.z);
         
+        // Export rabbit position for collision detection
+        window.rabbitPosition = {
+          x: rabbitPosition.current.x,
+          y: rabbitPosition.current.y,
+          z: rabbitPosition.current.z
+        };
+        
         // Enhanced camera following
         if (cameraMode === 'behind') {
           const distance = CAMERA_DISTANCE_BEHIND;
